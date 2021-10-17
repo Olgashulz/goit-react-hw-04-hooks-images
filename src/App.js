@@ -1,6 +1,7 @@
-import { Component } from 'react';
+import { useEffect, useState } from 'react';
 import { ToastContainer } from 'react-toastify';
 import { toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 import Searchbar from './components/Searchbar';
 import ImageGallery from './components/ImageGallery';
@@ -10,109 +11,90 @@ import Loader from './components/Loader';
 import ErrorResponse from './components/ErrorResponse';
 import { fetchImages } from './servises/app';
 
-export default class App extends Component {
-  state = {
-    inputValue: '',
-    images: [],
-    page: 1,
-    showModal: false,
+const Status = {
+  PENDING: 'pending',
+  RESOLVED: 'resolved',
+  REJECTED: 'rejected',
+};
 
-    error: null,
-    status: 'resolved',
-  };
+export default function App() {
+  const [inputValue, setInputValue] = useState('');
+  const [images, setImages] = useState([]);
+  const [page, setPage] = useState(1);
+  const [showModal, setShowModal] = useState(false);
+  const [error, setError] = useState(null);
+  const [status, setStatus] = useState('resolved');
+  const [largeImage, setLargeImage] = useState(null);
 
-  async componentDidUpdate(prevProps, prevState) {
-    const { inputValue, page } = this.state;
+  useEffect(() => {
+    if (!inputValue) {
+      return;
+    }
 
-    if (prevState.inputValue !== inputValue || prevState.page !== page) {
-      try {
-        this.setState({ status: 'pending' });
-        const gallery = await fetchImages(inputValue, page);
-
-        if (gallery.length < 1 && page !== 1) {
+    setStatus(Status.PENDING);
+    fetchImages(inputValue, page)
+      .then(res => {
+        if (res.length < 1 && page !== 1) {
           return toast.error(`Sorry, that's all there is to your request. `);
         }
-
-        if (gallery.length < 1) {
+        if (res.length < 1) {
           return toast.error('Sorry, no results were found.');
         }
-
-        this.setState({ status: 'resolved' });
-        this.setState(prevState => ({
-          images: [...prevState.images, ...gallery],
-        }));
-
+        setImages(prevState => [...prevState, ...res]);
+        setStatus(Status.RESOLVED);
+      })
+      .catch(error => {
+        setError(error);
+        setStatus(Status.REJECTED);
+      })
+      .finally(() => {
         window.scrollTo({
           top: document.documentElement.scrollHeight,
           behavior: 'smooth',
         });
-      } catch (error) {
-        this.setState({ error, status: 'rejected' });
-      }
-    }
-  }
+      });
+  }, [inputValue, page]);
 
-  handleSearchSubmit = inputValue => {
-    console.log(inputValue);
-    this.setState({ inputValue });
+  const removeImages = () => {
+    setImages([]);
   };
 
-  //  handleSearchSubmit = inputValue => {
-  //   console.log(inputValue);
-  //   this.setState({ inputValue, images: [], page: 1 });
-  // };
-
-  removeImages = () => {
-    this.setState({ images: [] });
+  const resetState = () => {
+    setInputValue('');
+    setImages([]);
+    setPage(1);
+    setError(null);
   };
 
-  onLoadMore = event => {
-    this.setState(prevState => ({
-      page: prevState.page + 1,
-    }));
-    this.handleSearchSubmit(this.state.inputValue);
+  const toggleModal = largeImage => {
+    setShowModal(!showModal);
+    setLargeImage(largeImage);
   };
 
-  toggleModal = largeImage => {
-    this.setState(({ showModal }) => ({
-      showModal: !showModal,
-    }));
-    this.setState({ largeImage: largeImage });
+  const onLoadMore = event => {
+    setInputValue(inputValue);
+    setPage(page + 1);
   };
 
-  resetState = () => {
-    this.setState({
-      images: [],
-      page: 1,
-      error: null,
-    });
-  };
+  return (
+    <div className="container">
+      <Searchbar
+        onSubmitApp={setInputValue}
+        removeImagesApp={removeImages}
+        resetStateApp={resetState}
+      />
+      {status === 'pending' && <Loader />}
+      {status === 'rejected' && <ErrorResponse message={error.message} />}
 
-  render() {
-    const { status, error, inputValue, showModal, largeImage, images } =
-      this.state;
-    return (
-      <div className="container">
-        <Searchbar
-          onSubmit={this.handleSearchSubmit}
-          removeImages={this.removeImages}
-          resetState={this.resetState}
-        />
+      <ImageGallery onOpen={toggleModal} images={images} />
+      {images.length > 0 && <Button onLoadMore={onLoadMore} />}
 
-        {status === 'pending' && <Loader />}
-        {status === 'rejected' && <ErrorResponse message={error.message} />}
-
-        <ImageGallery onOpen={this.toggleModal} images={images} />
-
-        {images.length > 0 && <Button onLoadMore={this.onLoadMore} />}
-
-        {showModal && (
-          <Modal onClose={this.toggleModal}>
-            <img src={largeImage} alt={inputValue} className="LargeImg" />
-          </Modal>
-        )}
-        <ToastContainer autoClose={2500} />
-      </div>
-    );
-  }
+      {showModal && (
+        <Modal onClose={toggleModal}>
+          <img src={largeImage} alt={inputValue} className="LargeImg" />
+        </Modal>
+      )}
+      <ToastContainer autoClose={2500} />
+    </div>
+  );
 }
