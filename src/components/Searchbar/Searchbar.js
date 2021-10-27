@@ -32,6 +32,7 @@ export default function Searchbar({
       <a href="#" onClick={() => resetStateApp()} className="link">
         <h1 className="Title">Image Gallery</h1>
       </a>
+
       <form className="SearchForm" onSubmit={handleOnSubmit}>
         <input
           className="SearchForm-input"
